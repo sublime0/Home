@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>방과후 시간표</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface2: #F0EDE6;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.15);
+    --text: #1A1814;
+    --text-muted: #7A7670;
+    --text-faint: #B0ADA8;
+    --accent: #3D6B4F;
+    --accent-light: #E8F2EC;
+    --danger: #C0392B;
+    --cell-h: 52px;
+    --header-h: 56px;
+    --time-w: 56px;
+    --font: 'Noto Sans KR', sans-serif;
+    --mono: 'DM Mono', monospace;
+    --radius: 10px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.14);
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  .app-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 1.5rem;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.3px;
+  }
+  .app-title span { color: var(--text-muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface2); }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: #2f5540; }
+  .btn-icon { padding: 7px 10px; }
+  .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  .sync-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-muted);
+    font-family: var(--mono);
+  }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #B0ADA8;
+    transition: background 0.3s;
+  }
+  .sync-dot.syncing { background: #F0A500; animation: pulse 1s infinite; }
+  .sync-dot.ok { background: #27AE60; }
+  .sync-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ── SETUP BANNER ── */
+  .setup-banner {
+    margin: 1rem 1.5rem;
+    padding: 14px 18px;
+    background: #FFF8E6;
+    border: 1px solid #F0C040;
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: #7A6020;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .setup-banner svg { flex-shrink: 0; margin-top: 1px; }
+  .setup-banner a { color: var(--accent); text-decoration: underline; cursor: pointer; }
+
+  /* ── TIMETABLE ── */
+  .timetable-wrap {
+    padding: 1rem 1.5rem 2rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .timetable {
+    display: grid;
+    grid-template-columns: var(--time-w) repeat(5, 1fr);
+    min-width: 480px;
+    background: var(--surface);
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  /* header row */
+  .tt-corner, .tt-day-header {
+    height: var(--header-h);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 60px; background: var(--surface); z-index: 10;
+  }
+  .tt-corner { color: var(--text-faint); font-family: var(--mono); font-size: 11px; }
+  .tt-day-header { flex-direction: column; gap: 2px; }
+  .tt-day-header .day-ko { font-size: 14px; font-weight: 700; color: var(--text); }
+  .tt-day-header .day-en { font-size: 10px; font-weight: 400; color: var(--text-faint); font-family: var(--mono); text-transform: uppercase; letter-spacing: 1px; }
+  .tt-day-header.today .day-ko { color: var(--accent); }
+  .tt-day-header.today { background: var(--accent-light); }
+
+  /* time column */
+  .tt-time-label {
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    height: var(--cell-h);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px dashed var(--border);
+  }
+
+  /* day column cells */
+  .tt-cell {
+    position: relative;
+    height: var(--cell-h);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px dashed var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .tt-cell:last-child { border-right: none; }
+  .tt-cell:hover { background: var(--accent-light); }
+
+  /* ── SCHEDULE BLOCKS ── */
+  .sched-block {
+    position: absolute;
+    left: 4px; right: 4px;
+    border-radius: 8px;
+    padding: 5px 8px;
+    cursor: pointer;
+    z-index: 5;
+    overflow: hidden;
+    transition: filter 0.15s, transform 0.1s;
+    border: 1.5px solid transparent;
+  }
+  .sched-block:hover { filter: brightness(0.93); transform: scale(1.01); z-index: 6; }
+  .sched-block:active { transform: scale(0.98); }
+  .sched-block .blk-subject {
+    font-size: 12px; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+  .sched-block .blk-time {
+    font-size: 10px; font-family: var(--mono);
+    opacity: 0.75; margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sched-block .blk-memo {
+    font-size: 10px; opacity: 0.7; margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ── TOOLTIP ── */
+  .tooltip {
+    position: fixed;
+    background: var(--text);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    max-width: 220px;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s, transform 0.15s;
+    box-shadow: var(--shadow-lg);
+  }
+  .tooltip.visible { opacity: 1; transform: translateY(0); }
+  .tooltip .tt-subject { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .tooltip .tt-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 3px; }
+  .tooltip .tt-label { opacity: 0.6; min-width: 32px; }
+  .tooltip .tt-val { font-weight: 500; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.38);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(16px) scale(0.97);
+    transition: transform 0.2s;
+    overflow: hidden;
+  }
+  .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.3px; }
+  .form-input, .form-select {
+    padding: 9px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    font-family: var(--font);
+    font-size: 14px;
+    color: var(--text);
+    background: var(--surface);
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .color-picker-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .color-swatch {
+    width: 26px; height: 26px; border-radius: 6px;
+    cursor: pointer; border: 2px solid transparent;
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  .color-swatch:hover { transform: scale(1.1); }
+  .color-swatch.selected { border-color: var(--text); }
+
+  .btn-delete { color: var(--danger); border-color: rgba(192,57,43,0.2); }
+  .btn-delete:hover { background: #FDF0EE; }
+
+  /* ── GOOGLE SETUP MODAL ── */
+  .setup-modal-body { padding: 20px 24px; }
+  .setup-step { display: flex; gap: 12px; margin-bottom: 16px; }
+  .setup-step-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .setup-step-content { flex: 1; }
+  .setup-step-content p { font-size: 13px; color: var(--text); margin-bottom: 6px; }
+  .setup-step-content small { font-size: 11px; color: var(--text-muted); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 640px) {
+    :root { --cell-h: 44px; --header-h: 48px; --time-w: 44px; }
+    .app-header { padding: 0 1rem; height: 52px; }
+    .timetable-wrap { padding: 0.75rem 0.75rem 2rem; }
+    .btn span { display: none; }
+    .sync-status .sync-label { display: none; }
+    .setup-banner { margin: 0.75rem; }
+    .modal { max-width: 100%; margin: 0 0.5rem; }
+    .modal-body { padding: 16px; }
+    .modal-header, .modal-footer { padding: 14px 16px; }
+  }
+  @media (max-width: 400px) {
+    :root { --time-w: 38px; }
+    .tt-day-header .day-en { display: none; }
+    .form-row { grid-template-columns: 1fr; }
+  }
+
+  /* ── FAB ── */
+  .fab {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 16px rgba(61,107,79,0.4);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+    z-index: 50;
+  }
+  .fab:hover { transform: scale(1.07); box-shadow: 0 6px 20px rgba(61,107,79,0.5); }
+  .fab:active { transform: scale(0.95); }
+  .fab svg { width: 22px; height: 22px; }
+
+  /* week nav */
+  .week-nav {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0.75rem 1.5rem 0;
+  }
+  .week-label { font-size: 13px; color: var(--text-muted); font-family: var(--mono); }
+
+  .empty-hint {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 3rem 0;
+    color: var(--text-faint);
+    font-size: 13px; gap: 8px;
+  }
+  .empty-hint svg { opacity: 0.3; }
+
+  .notification {
+    position: fixed; top: 72px; right: 16px;
+    background: var(--text); color: #fff;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    z-index: 300;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-8px);
+    opacity: 0;
+    transition: all 0.25s;
+  }
+  .notification.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-title">
+    방과후 시간표
+    <span id="child-name-display">자녀 이름 설정</span>
+  </div>
+  <div class="header-actions">
+    <div class="sync-status">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span class="sync-label" id="sync-label" style="font-size:11px">미연결</span>
+    </div>
+    <button class="btn btn-icon" id="btn-refresh" title="구글 시트 동기화" onclick="manualSync()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+    </button>
+    <button class="btn" id="btn-sheets" onclick="openSheetsSetup()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      <span>Google 시트</span>
+    </button>
+    <button class="btn btn-primary" onclick="openAddModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span>추가</span>
+    </button>
+  </div>
+</header>
+
+<!-- SETUP BANNER -->
+<div class="setup-banner" id="setup-banner" style="display:none">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F0A500" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+  <div>
+    <strong>Google Sheets 연동 필요:</strong> Apps Script 웹앱을 배포하고 URL을 설정해주세요.
+    <a onclick="openSheetsSetup()">설정 방법 보기 →</a>
+  </div>
+</div>
+
+<!-- TIMETABLE -->
+<div class="timetable-wrap">
+  <div class="timetable" id="timetable">
+    <!-- JS로 렌더링 -->
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openAddModal()" title="일정 추가">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<!-- TOOLTIP -->
+<div class="tooltip" id="tooltip"></div>
+
+<!-- NOTIFICATION -->
+<div class="notification" id="notification"></div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">일정 추가</span>
+      <button class="btn btn-icon" onclick="closeModal()" style="border:none;background:none;cursor:pointer;padding:4px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-id">
+      <div class="form-group">
+        <label class="form-label">과목 / 학원</label>
+        <input class="form-input" id="f-subject" placeholder="예: 수학학원, 태권도..." maxlength="30">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">요일</label>
+          <select class="form-select" id="f-day">
+            <option value="0">월요일</option>
+            <option value="1">화요일</option>
+            <option value="2">수요일</option>
+            <option value="3">목요일</option>
+            <option value="4">금요일</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">색상</label>
+          <div class="color-picker-row" id="color-picker"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">시작 시간</label>
+          <input class="form-input" id="f-start" type="time" min="12:00" max="20:00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">종료 시간</label>
+          <input class="form-input" id="f-end" type="time" min="12:00" max="20:00">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">메모</label>
+        <textarea class="form-input" id="f-memo" placeholder="선생님 연락처, 준비물 등..." maxlength="200" rows="3" style="resize:vertical;min-height:64px;line-height:1.5"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-delete" id="btn-delete" onclick="deleteSchedule()" style="margin-right:auto;display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+        삭제
+      </button>
+      <button class="btn" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveSchedule()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- GOOGLE SHEETS SETUP MODAL -->
+<div class="modal-overlay" id="sheets-modal-overlay" onclick="closeSheetsModal(event)">
+  <div class="modal" id="sheets-modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title">Google Sheets 연동 설정</span>
+      <button class="btn btn-icon" onclick="closeSheetsModal()" style="border:none;background:none;cursor:pointer;padding:4px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="setup-modal-body">
+      <div class="setup-step">
+        <div class="setup-step-num">1</div>
+        <div class="setup-step-content">
+          <p><strong>Google Sheets</strong>에서 새 스프레드시트를 만드세요.</p>
+          <small>헤더 행: id, day, subject, startTime, endTime, memo, color</small>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-step-num">2</div>
+        <div class="setup-step-content">
+          <p><strong>확장 프로그램 → Apps Script</strong>를 열고 아래 코드를 붙여넣으세요.</p>
+          <button class="btn" style="font-size:11px;padding:5px 10px;margin-top:4px" onclick="copyAppsScript()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Apps Script 코드 복사
+          </button>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-step-num">3</div>
+        <div class="setup-step-content">
+          <p><strong>배포 → 새 배포</strong>에서 웹 앱으로 배포하세요.</p>
+          <small>액세스 권한: <strong>"모든 사용자"</strong>로 설정 · 코드 수정 후엔 반드시 <strong>새 버전</strong>으로 재배포</small>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-step-num">4</div>
+        <div class="setup-step-content">
+          <p>배포된 <strong>웹 앱 URL</strong>을 입력하세요.</p>
+          <input class="form-input" id="sheets-url" placeholder="https://script.google.com/macros/s/..." style="margin-top:6px">
+        </div>
+      </div>
+      <div class="setup-step" style="margin-bottom:0">
+        <div class="setup-step-num">5</div>
+        <div class="setup-step-content">
+          <p>자녀 이름 (선택)</p>
+          <input class="form-input" id="child-name-input" placeholder="예: 지유" style="margin-top:6px;max-width:160px">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSheetsModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveSheetsConfig()">저장 및 연결</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  CONFIG & STATE
+// ══════════════════════════════════════════════
+const DAYS = ['월','화','수','목','금'];
+const DAY_EN = ['MON','TUE','WED','THU','FRI'];
+const TIME_START = 12;
+const TIME_END = 20;
+const TOTAL_HOURS = TIME_END - TIME_START;
+const PASTEL_COLORS = [
+  { bg:'#FFD6D6', text:'#8B3A3A' },
+  { bg:'#FFE8CC', text:'#8B5A1A' },
+  { bg:'#FFF3CC', text:'#7A6020' },
+  { bg:'#D6FFDB', text:'#2A7A40' },
+  { bg:'#CCF0FF', text:'#1A5F8A' },
+  { bg:'#E8D6FF', text:'#5E2A8A' },
+  { bg:'#FFD6F0', text:'#8A2A5E' },
+  { bg:'#D6F0FF', text:'#1A5A7A' },
+  { bg:'#DFFFD6', text:'#2A6A2A' },
+  { bg:'#FFE6D6', text:'#7A4020' },
+];
+
+let schedules = JSON.parse(localStorage.getItem('schedules') || '[]');
+let sheetsUrl = localStorage.getItem('sheetsUrl') || '';
+let childName = localStorage.getItem('childName') || '';
+let selectedColor = PASTEL_COLORS[0];
+let editingId = null;
+let syncTimer = null;
+let isSyncing = false;
+
+// ══════════════════════════════════════════════
+//  RENDER TIMETABLE
+// ══════════════════════════════════════════════
+function renderTimetable() {
+  const wrap = document.getElementById('timetable');
+  const today = new Date().getDay(); // 0=Sun,1=Mon...5=Fri,6=Sat
+  const todayIdx = today >= 1 && today <= 5 ? today - 1 : -1;
+
+  let html = '';
+  // Corner
+  html += `<div class="tt-corner">시간</div>`;
+  // Day headers
+  DAYS.forEach((d, i) => {
+    const cls = i === todayIdx ? 'tt-day-header today' : 'tt-day-header';
+    html += `<div class="${cls}"><span class="day-ko">${d}</span><span class="day-en">${DAY_EN[i]}</span></div>`;
+  });
+
+  // For each 30-min slot
+  const slots = TOTAL_HOURS * 2; // 16 slots for 8 hours
+  for (let s = 0; s < slots; s++) {
+    const totalMins = TIME_START * 60 + s * 30;
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    const label = s % 2 === 0 ? `${h}:00` : '';
+    const borderStyle = s % 2 === 0 ? 'border-bottom:1px solid var(--border)' : '';
+    html += `<div class="tt-time-label" style="${borderStyle}">${label}</div>`;
+
+    for (let d = 0; d < 5; d++) {
+      const isLast = s === slots - 1;
+      html += `<div class="tt-cell" data-day="${d}" data-slot="${s}" onclick="cellClick(${d},${s})" style="${isLast ? 'border-bottom:none' : ''}"></div>`;
+    }
+  }
+  wrap.innerHTML = html;
+
+  // Place blocks
+  schedules.forEach(sc => placeBlock(sc));
+
+  // Update child name
+  const nameEl = document.getElementById('child-name-display');
+  nameEl.textContent = childName ? `· ${childName}의 시간표` : '자녀 이름 설정';
+}
+
+function timeToSlot(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h - TIME_START) * 2 + (m >= 30 ? 1 : 0);
+}
+function timeToPixel(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const totalMins = (h - TIME_START) * 60 + m;
+  return (totalMins / 30) * getCellH();
+}
+function getCellH() {
+  const cell = document.querySelector('.tt-cell');
+  return cell ? cell.offsetHeight : 52;
+}
+
+function placeBlock(sc) {
+  const dayCol = document.querySelectorAll(`.tt-cell[data-day="${sc.day}"]`);
+  if (!dayCol.length) return;
+  const colEl = dayCol[0].parentElement || document.getElementById('timetable');
+
+  // Find reference cell for positioning
+  const startSlot = timeToSlot(sc.startTime);
+  const refCell = document.querySelector(`.tt-cell[data-day="${sc.day}"][data-slot="${startSlot}"]`);
+  if (!refCell) return;
+
+  const cellH = getCellH();
+  const [sh, sm] = sc.startTime.split(':').map(Number);
+  const [eh, em] = sc.endTime.split(':').map(Number);
+  const startMins = (sh - TIME_START) * 60 + sm;
+  const endMins = (eh - TIME_START) * 60 + em;
+  const durationMins = endMins - startMins;
+  const topPx = (startMins / 30) * cellH;
+  const heightPx = (durationMins / 30) * cellH - 2;
+
+  const block = document.createElement('div');
+  block.className = 'sched-block';
+  block.id = `block-${sc.id}`;
+  block.style.cssText = `
+    background: ${sc.color.bg};
+    border-color: ${sc.color.bg};
+    color: ${sc.color.text};
+    top: ${topPx + getCellHeaderOffset()}px;
+    height: ${Math.max(heightPx, 24)}px;
+  `;
+
+  const showTime = durationMins >= 45;
+  const showMemo = durationMins >= 60 && sc.memo;
+  block.innerHTML = `
+    <div class="blk-subject">${esc(sc.subject)}</div>
+    ${showTime ? `<div class="blk-time">${sc.startTime}–${sc.endTime}</div>` : ''}
+    ${showMemo ? `<div class="blk-memo">${esc(sc.memo)}</div>` : ''}
+  `;
+
+  block.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(sc.id); });
+  block.addEventListener('mouseenter', (e) => showTooltip(e, sc));
+  block.addEventListener('mouseleave', hideTooltip);
+  block.addEventListener('mousemove', (e) => moveTooltip(e));
+
+  document.getElementById('timetable').style.position = 'relative';
+  document.getElementById('timetable').appendChild(block);
+
+  // Absolute within timetable
+  const ttRect = document.getElementById('timetable').getBoundingClientRect();
+  const cellRect = refCell.getBoundingClientRect();
+  const relLeft = cellRect.left - ttRect.left + 4;
+  const relWidth = cellRect.width - 8;
+  const refTopSlot0 = document.querySelector('.tt-cell[data-slot="0"]');
+  const slot0Top = refTopSlot0 ? refTopSlot0.getBoundingClientRect().top - ttRect.top : getCellHeaderOffset();
+  block.style.position = 'absolute';
+  block.style.left = relLeft + 'px';
+  block.style.width = relWidth + 'px';
+  block.style.top = (slot0Top + (startMins / 30) * cellH) + 'px';
+}
+
+function getCellHeaderOffset() {
+  const h = document.querySelector('.tt-day-header');
+  return h ? h.offsetHeight : 56;
+}
+
+// ══════════════════════════════════════════════
+//  TOOLTIP
+// ══════════════════════════════════════════════
+const tooltip = document.getElementById('tooltip');
+function showTooltip(e, sc) {
+  tooltip.innerHTML = `
+    <div class="tt-subject">${esc(sc.subject)}</div>
+    <div class="tt-row"><span class="tt-label">요일</span><span class="tt-val">${DAYS[sc.day]}요일</span></div>
+    <div class="tt-row"><span class="tt-label">시간</span><span class="tt-val">${sc.startTime} – ${sc.endTime}</span></div>
+    ${sc.memo ? `<div class="tt-row"><span class="tt-label">메모</span><span class="tt-val" style="white-space:pre-line">${esc(sc.memo)}</span></div>` : ''}
+  `;
+  moveTooltip(e);
+  tooltip.classList.add('visible');
+}
+function moveTooltip(e) {
+  const x = e.clientX + 14;
+  const y = e.clientY - 10;
+  const w = tooltip.offsetWidth || 180;
+  const h = tooltip.offsetHeight || 80;
+  const left = x + w > window.innerWidth ? x - w - 28 : x;
+  const top = y + h > window.innerHeight ? y - h : y;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+}
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+// ══════════════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════════════
+function openAddModal(prefDay) {
+  editingId = null;
+  document.getElementById('modal-title').textContent = '일정 추가';
+  document.getElementById('edit-id').value = '';
+  document.getElementById('f-subject').value = '';
+  document.getElementById('f-day').value = prefDay !== undefined ? prefDay : 0;
+  document.getElementById('f-start').value = '14:00';
+  document.getElementById('f-end').value = '16:00';
+  document.getElementById('f-memo').value = '';
+  document.getElementById('btn-delete').style.display = 'none';
+  const rand = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
+  setSelectedColor(rand);
+  renderColorPicker();
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('f-subject').focus(), 200);
+}
+
+function openEditModal(id) {
+  const sc = schedules.find(s => s.id === id);
+  if (!sc) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = '일정 수정';
+  document.getElementById('edit-id').value = id;
+  document.getElementById('f-subject').value = sc.subject;
+  document.getElementById('f-day').value = sc.day;
+  document.getElementById('f-start').value = sc.startTime;
+  document.getElementById('f-end').value = sc.endTime;
+  document.getElementById('f-memo').value = sc.memo || '';
+  document.getElementById('btn-delete').style.display = 'flex';
+  setSelectedColor(sc.color);
+  renderColorPicker();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function cellClick(day, slot) {
+  const h = Math.floor(TIME_START + slot / 2);
+  const m = slot % 2 === 0 ? '00' : '30';
+  const endH = m === '00' ? h + 1 : h + 1;
+  openAddModal(day);
+  document.getElementById('f-start').value = `${String(h).padStart(2,'0')}:${m}`;
+  document.getElementById('f-end').value = `${String(endH).padStart(2,'0')}:${m === '00' ? '30' : '00'}`;
+}
+
+function renderColorPicker() {
+  const el = document.getElementById('color-picker');
+  el.innerHTML = PASTEL_COLORS.map((c, i) => `
+    <div class="color-swatch ${c.bg === selectedColor.bg ? 'selected' : ''}"
+      style="background:${c.bg}"
+      onclick="pickColor(${i})"
+      title="${c.bg}">
+    </div>
+  `).join('');
+}
+function pickColor(i) { setSelectedColor(PASTEL_COLORS[i]); renderColorPicker(); }
+function setSelectedColor(c) { selectedColor = c; }
+
+function saveSchedule() {
+  const subject = document.getElementById('f-subject').value.trim();
+  const day = parseInt(document.getElementById('f-day').value);
+  const startTime = document.getElementById('f-start').value;
+  const endTime = document.getElementById('f-end').value;
+  const memo = document.getElementById('f-memo').value.trim();
+
+  if (!subject) { shake('f-subject'); return; }
+  if (!startTime || !endTime) { notify('시작/종료 시간을 입력해주세요'); return; }
+  if (startTime >= endTime) { notify('종료 시간은 시작 시간보다 늦어야 합니다'); return; }
+
+  if (editingId) {
+    const idx = schedules.findIndex(s => s.id === editingId);
+    if (idx >= 0) {
+      schedules[idx] = { ...schedules[idx], subject, day, startTime, endTime, memo, color: selectedColor };
+    }
+  } else {
+    const newSc = { id: Date.now().toString(), subject, day, startTime, endTime, memo, color: selectedColor };
+    schedules.push(newSc);
+  }
+
+  // Parallel: update UI + sync
+  saveLocal();
+  document.getElementById('modal-overlay').classList.remove('open');
+  renderTimetable();
+  notify(editingId ? '수정되었습니다' : '추가되었습니다 ✓');
+  syncToSheets(); // parallel sync
+}
+
+function deleteSchedule() {
+  if (!editingId) return;
+  schedules = schedules.filter(s => s.id !== editingId);
+  saveLocal();
+  document.getElementById('modal-overlay').classList.remove('open');
+  renderTimetable();
+  notify('삭제되었습니다');
+  syncToSheets();
+}
+
+function saveLocal() {
+  localStorage.setItem('schedules', JSON.stringify(schedules));
+}
+
+function shake(id) {
+  const el = document.getElementById(id);
+  el.style.animation = 'none';
+  el.style.borderColor = 'var(--danger)';
+  setTimeout(() => el.style.borderColor = '', 1500);
+  el.focus();
+}
+
+// ══════════════════════════════════════════════
+//  GOOGLE SHEETS SYNC
+// ══════════════════════════════════════════════
+function openSheetsSetup() {
+  document.getElementById('sheets-url').value = sheetsUrl;
+  document.getElementById('child-name-input').value = childName;
+  document.getElementById('sheets-modal-overlay').classList.add('open');
+}
+function closeSheetsModal(e) {
+  if (e && e.target !== document.getElementById('sheets-modal-overlay')) return;
+  document.getElementById('sheets-modal-overlay').classList.remove('open');
+}
+
+function saveSheetsConfig() {
+  sheetsUrl = document.getElementById('sheets-url').value.trim();
+  childName = document.getElementById('child-name-input').value.trim();
+  localStorage.setItem('sheetsUrl', sheetsUrl);
+  localStorage.setItem('childName', childName);
+  document.getElementById('sheets-modal-overlay').classList.remove('open');
+  renderTimetable();
+  if (sheetsUrl) {
+    document.getElementById('setup-banner').style.display = 'none';
+    syncToSheets();
+  }
+}
+
+function setSyncStatus(state, label) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  lbl.textContent = label;
+}
+
+// Apps Script는 POST+CORS 조합이 까다로우므로
+// 저장/불러오기 모두 GET + data 파라미터로 통일
+// ── CORS 우회: JSONP(불러오기) + iframe form submit(저장) ──
+
+function jsonpRequest(url, callbackName) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timeout'));
+    }, 10000);
+
+    function cleanup() {
+      delete window[callbackName];
+      const s = document.getElementById('jsonp-' + callbackName);
+      if (s) s.remove();
+      clearTimeout(timeout);
+    }
+
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    const script = document.createElement('script');
+    script.id = 'jsonp-' + callbackName;
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName;
+    script.onerror = () => { cleanup(); reject(new Error('Script load failed')); };
+    document.head.appendChild(script);
+  });
+}
+
+function formPostToSheets(data) {
+  return new Promise((resolve, reject) => {
+    // hidden iframe에 form submit → CORS 없이 POST 가능
+    const iframeId = 'sync-iframe-' + Date.now();
+    const formId = 'sync-form-' + Date.now();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = iframeId;
+    iframe.name = iframeId;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const form = document.createElement('form');
+    form.id = formId;
+    form.method = 'POST';
+    form.action = sheetsUrl;
+    form.target = iframeId;
+    form.style.display = 'none';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify({ action: 'sync', data });
+    form.appendChild(input);
+    document.body.appendChild(form);
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      // form submit은 응답 확인 불가지만 요청은 전달됨 → 성공으로 간주
+      resolve({ status: 'ok' });
+    }, 5000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      iframe.remove();
+      form.remove();
+    }
+
+    iframe.onload = () => { cleanup(); resolve({ status: 'ok' }); };
+    form.submit();
+  });
+}
+
+async function syncToSheets() {
+  if (!sheetsUrl) { setSyncStatus('', '미연결'); return; }
+  if (isSyncing) return;
+  isSyncing = true;
+  setSyncStatus('syncing', '동기화 중...');
+  try {
+    await formPostToSheets(schedules);
+    setSyncStatus('ok', '동기화 완료');
+    setTimeout(() => setSyncStatus('ok', '연결됨'), 2500);
+  } catch (err) {
+    setSyncStatus('error', '동기화 오류');
+    notify('저장 실패: ' + err.message);
+    console.error('Sync error:', err);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+async function loadFromSheets() {
+  if (!sheetsUrl) return;
+  setSyncStatus('syncing', '불러오는 중...');
+  const cbName = '__schedCb_' + Date.now();
+  try {
+    const data = await jsonpRequest(sheetsUrl + '?action=load', cbName);
+    if (Array.isArray(data) && data.length > 0) {
+      schedules = data;
+      saveLocal();
+      renderTimetable();
+      notify('구글 시트에서 불러왔습니다 ✓');
+    } else {
+      notify('시트에 데이터가 없습니다');
+    }
+    setSyncStatus('ok', '연결됨');
+  } catch (err) {
+    setSyncStatus('error', '로드 실패');
+    notify('구글 시트 연결 실패 — URL과 배포 설정을 확인해주세요');
+    console.error('Load error:', err);
+  }
+}
+
+function manualSync() {
+  if (!sheetsUrl) { openSheetsSetup(); return; }
+  loadFromSheets();
+}
+
+// Auto sync every 5 minutes
+function startAutoSync() {
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = setInterval(() => { if (sheetsUrl) syncToSheets(); }, 5 * 60 * 1000);
+}
+
+// ══════════════════════════════════════════════
+//  NOTIFICATIONS
+// ══════════════════════════════════════════════
+let notifTimer;
+function notify(msg) {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ══════════════════════════════════════════════
+//  APPS SCRIPT CODE
+// ══════════════════════════════════════════════
+const APPS_SCRIPT_CODE = `
+// ── JSONP(GET 불러오기) + form POST(저장) 방식 ──
+// 배포: 웹앱, 액세스 = "모든 사용자"
+
+function doGet(e) {
+  const action = e.parameter.action || 'ping';
+  const callback = e.parameter.callback; // JSONP 콜백 함수명
+
+  let result;
+  if (action === 'load') {
+    result = loadData();
+  } else {
+    result = { status: 'ok', message: 'ready' };
+  }
+
+  const json = JSON.stringify(result);
+  // callback 파라미터가 있으면 JSONP, 없으면 일반 JSON
+  const output = callback ? callback + '(' + json + ')' : json;
+  const mime = callback
+    ? ContentService.MimeType.JAVASCRIPT
+    : ContentService.MimeType.JSON;
+
+  return ContentService.createTextOutput(output).setMimeType(mime);
+}
+
+function doPost(e) {
+  try {
+    // form submit은 payload 필드로 옴
+    const raw = e.parameter.payload || e.postData.contents;
+    const parsed = JSON.parse(raw);
+    if (parsed.action === 'sync') {
+      syncData(parsed.data);
+    }
+  } catch(err) {
+    // 오류여도 200 반환 (iframe은 응답을 읽지 못하므로)
+  }
+  // 빈 HTML 반환 (iframe용)
+  return HtmlService.createHtmlOutput('ok');
+}
+
+function syncData(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('시간표');
+  if (!sheet) sheet = ss.insertSheet('시간표');
+  sheet.clearContents();
+  sheet.appendRow(['id','day','subject','startTime','endTime','memo','color_bg','color_text']);
+  data.forEach(function(row) {
+    sheet.appendRow([
+      row.id,
+      row.day,
+      row.subject,
+      row.startTime + ':00',
+      row.endTime + ':00',
+      row.memo || '',
+      row.color ? row.color.bg : '#FFD6D6',
+      row.color ? row.color.text : '#8B3A3A'
+    ]);
+  });
+}
+
+function loadData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('시간표');
+  if (!sheet) return [];
+  const rows = sheet.getDataRange().getValues();
+  const result = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue;
+    result.push({
+      id: String(rows[i][0]),
+      day: Number(rows[i][1]),
+      subject: String(rows[i][2]),
+      startTime: String(rows[i][3]).slice(0, 5),
+      endTime: String(rows[i][4]).slice(0, 5),
+      memo: rows[i][5] || '',
+      color: { bg: rows[i][6] || '#FFD6D6', text: rows[i][7] || '#8B3A3A' }
+    });
+  }
+  return result;
+}
+`;
+
+function copyAppsScript() {
+  navigator.clipboard.writeText(APPS_SCRIPT_CODE.trim()).then(() => {
+    notify('Apps Script 코드가 복사되었습니다 ✓');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = APPS_SCRIPT_CODE.trim();
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    notify('Apps Script 코드가 복사되었습니다 ✓');
+  });
+}
+
+// ══════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+window.addEventListener('load', () => {
+  renderTimetable();
+
+  if (!sheetsUrl) {
+    document.getElementById('setup-banner').style.display = 'flex';
+  } else {
+    setSyncStatus('ok', '연결됨');
+    loadFromSheets();
+  }
+
+  startAutoSync();
+});
+
+window.addEventListener('resize', () => {
+  renderTimetable();
+});
+</script>
+</body>
+</html>
+```
